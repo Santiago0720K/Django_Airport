@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Distancia entre Aeropuertos</title>
+    <style>
+        /* --- Estilos Generales --- */
+        /* Animación para el efecto de paneo en el fondo */
+        @keyframes slowPan {
+            0% { background-position: center 60%; }
+            50% { background-position: center 80%; }
+            100% { background-position: center 60%; }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            
+            /* --- Fondo con efectos --- */
+            /* 1. Capa de color para bajar la intensidad y URL de la imagen */
+            background-image: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url("{% static 'imagenes/mi_fondo.jpg' %}");
+            background-size: cover; /* Hace que la imagen cubra toda la pantalla */
+            background-repeat: no-repeat; /* Evita que la imagen se repita */
+            background-attachment: fixed; /* Fija la imagen para que no se desplace con el contenido */
+
+            /* 2. Animación para un efecto de paneo vertical lento */
+            animation: slowPan 40s infinite ease-in-out;
+            /* 3. Posición inicial de la imagen (un poco más abajo del centro) */
+            background-position: center 60%;
+
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center; /* Centra el contenido verticalmente */
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* --- Animación de entrada para el contenedor --- */
+        @keyframes slideUpFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Animación para la aparición de los resultados */
+        @keyframes resultFadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+
+        /* --- Contenedor Principal --- */
+        .container {
+            /* --- Efecto de vidrio esmerilado (frosted glass) --- */
+            background-color: rgba(255, 255, 255, 0.85); /* Blanco con 85% de opacidad */
+            backdrop-filter: blur(10px); /* Desenfoque del fondo */
+            -webkit-backdrop-filter: blur(10px); /* Para compatibilidad con Safari */
+            border: 1px solid rgba(255, 255, 255, 0.2); /* Borde sutil para el efecto de vidrio */
+            padding: 2rem 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); /* Sombra más pronunciada para dar profundidad */
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+            /* Aplicamos la animación */
+            animation: slideUpFadeIn 0.6s ease-out forwards;
+        }
+
+        h1 {
+            color: #1a253c;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            font-size: 1.8rem;
+        }
+
+        /* --- Formulario --- */
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        .form-group {
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1rem;
+            text-transform: uppercase; /* Convierte el texto a mayúsculas mientras se escribe */
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+        }
+
+        input[type="text"]::placeholder {
+            text-transform: none;
+            color: #a0aec0;
+        }
+
+        button[type="submit"] {
+            background-color: #007bff;
+            color: white;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: bold;
+            /* Transición para el efecto hover */
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            margin-top: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        button[type="submit"]:hover {
+            background-color: #0056b3;
+            /* Efecto de elevación al pasar el ratón */
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        /* --- Áreas de Resultados y Errores --- */
+        #resultados, #error {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            animation: resultFadeIn 0.5s ease-out forwards;
+            border: 1px solid transparent;
+        }
+
+        #resultados {
+            background-color: rgba(230, 247, 255, 0.9); /* Azul claro con transparencia */
+            border-color: #91d5ff;
+        }
+
+        .resultado-ruta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .ruta-punto {
+            flex: 1;
+        }
+
+        .ruta-punto strong {
+            display: block;
+            font-size: 0.8rem;
+            color: #0050b3;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+
+        .ruta-punto span {
+            font-size: 0.9rem;
+            color: #333;
+            word-wrap: break-word;
+        }
+
+        .ruta-icono svg {
+            color: #007bff;
+            flex-shrink: 0;
+        }
+
+        .resultado-distancia {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px dashed #bde0fe;
+        }
+
+        .resultado-distancia strong {
+            display: block;
+            font-size: 0.9rem;
+            color: #0050b3;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .resultado-distancia p {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #003a8c;
+            font-weight: 300;
+        }
+
+        .resultado-distancia #distancia {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        #error {
+            background-color: #f8d7da;
+            border-color: #f56565;
+            color: #721c24;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Calculadora de Distancia entre Aeropuertos</h1>
+        
+        <!-- FORMULARIO MEJORADO -->
+        <form id="airportForm">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="aeropuerto_origen">Aeropuerto de Origen (Código IATA)</label>
+                <input 
+                    type="text" 
+                    id="aeropuerto_origen" 
+                    name="aeropuerto_origen"
+                    placeholder="Ej: BOG" 
+                    maxlength="3" 
+                    minlength="3"
+                    pattern="[A-Za-z]{3}"
+                    title="Ingrese un código IATA de 3 letras"
+                    required
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="aeropuerto_destino">Aeropuerto de Destino (Código IATA)</label>
+                <input 
+                    type="text" 
+                    id="aeropuerto_destino" 
+                    name="aeropuerto_destino"
+                    placeholder="Ej: MEX" 
+                    maxlength="3" 
+                    minlength="3"
+                    pattern="[A-Za-z]{3}"
+                    title="Ingrese un código IATA de 3 letras"
+                    required
+                >
+            </div>
+            
+            <button type="submit">Calcular Distancia</button>
+        </form>
+        
+        <!-- ÁREA DE RESULTADOS (sin cambios estructurales) -->
+        <div id="resultados" style="display: none;">
+            <div class="resultado-ruta">
+                <div class="ruta-punto">
+                    <strong>Origen</strong>
+                    <span id="origen"></span>
+                </div>
+                <div class="ruta-icono">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 16 16 12 12 8"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                </div>
+                <div class="ruta-punto">
+                    <strong>Destino</strong>
+                    <span id="destino"></span>
+                </div>
+            </div>
+            <div class="resultado-distancia">
+                <strong>Distancia Total</strong>
+                <p><span id="distancia"></span> km</p>
+            </div>
+        </div>
+        
+        <!-- ÁREA DE ERRORES (sin cambios estructurales) -->
+        <div id="error" style="display: none;"></div>
+
+    </div>
+
+    <script>
+        // JAVASCRIPT ESENCIAL (con mejoras de robustez)
+        document.getElementById('airportForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const resultadosDiv = document.getElementById('resultados');
+            const errorDiv = document.getElementById('error');
+            
+            // Limpiar resultados anteriores
+            resultadosDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            // Capturar datos del formulario
+            const formData = new FormData(this);
+            
+            // Enviar petición AJAX
+            fetch('/calculate/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            })
+            .then(response => response.json().then(data => ({ status: response.status, body: data })))
+            .then(({ status, body }) => {
+                if (body.success) {
+                    // Mostrar resultados exitosos
+                    document.getElementById('origen').textContent = 
+                        `${body.aeropuerto_origen.codigo} - ${body.aeropuerto_origen.nombre}`;
+                    
+                    document.getElementById('destino').textContent = 
+                        `${body.aeropuerto_destino.codigo} - ${body.aeropuerto_destino.nombre}`;
+                    
+                    document.getElementById('distancia').textContent = body.distancia_km;
+                    resultadosDiv.style.display = 'block';
+                    
+                } else {
+                    // Mostrar error
+                    let errorMessage = 'Ocurrió un error inesperado.'; // Mensaje por defecto
+                    if (typeof body.error === 'string') {
+                        errorMessage = body.error;
+                    } else if (typeof body.error === 'object') {
+                        // Manejar errores de validación del formulario de Django
+                        const fieldErrors = Object.values(body.error).flat();
+                        errorMessage = fieldErrors.map(err => err.message).join(' ');
+                    }
+                    errorDiv.textContent = errorMessage;
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                // Error de conexión o de parseo JSON
+                console.error('Fetch Error:', error);
+                errorDiv.textContent = 'Error de conexión o respuesta inválida del servidor.';
+                errorDiv.style.display = 'block';
+            });
+        });
+    </script>
+</body>
+</html>
