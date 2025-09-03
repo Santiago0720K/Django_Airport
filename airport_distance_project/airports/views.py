@@ -1,69 +1,117 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from .forms import AirportDistanceForm
-from geopy.distance import geodesic
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib import messages
+import requests
 import json
 
-# --- Vista principal ---
+#  Contiene la lógica para procesar las peticiones a la API de Airport Gap
+
+
+# Vista principal que muestra el formulario:
 
 def airport_distance_view(request):
-    """Renderiza la página principal con el formulario."""
-    form = AirportDistanceForm()
-    return render(request, "airport_distance.html", {"form": form})
 
-# --- Lógica de la calculadora ---
+    return render(request, 'airport_distance.html')
 
-# Simulación de una base de datos o API de aeropuertos.
-# En una aplicación real, esto vendría de una base de datos.
-AIRPORT_DATA = {
-    "BOG": {"name": "Aeropuerto Internacional El Dorado", "coords": (4.70159, -74.1469)},
-    "MEX": {"name": "Aeropuerto Internacional de la Ciudad de México", "coords": (19.4363, -99.0721)},
-    "JFK": {"name": "John F. Kennedy International Airport", "coords": (40.6413, -73.7781)},
-    "MAD": {"name": "Aeropuerto Adolfo Suárez Madrid-Barajas", "coords": (40.4983, -3.5676)},
-    "MIA": {"name": "Miami International Airport", "coords": (25.7959, -80.2871)},
-    "LAX": {"name": "Los Angeles International Airport", "coords": (33.9416, -118.4085)},
-}
-
-@require_POST
+# Vista que procesa el cálculo de distancia entre aeropuertos:
+@csrf_exempt # Desactivar CSRF para simplificar las pruebas con herramientas externas
 def calculate_distance(request):
-    """
-    Calcula la distancia entre dos aeropuertos usando datos POST y un formulario de Django.
-    """
-    form = AirportDistanceForm(request.POST)
 
-    if form.is_valid():
-        codigo_origen = form.cleaned_data['aeropuerto_origen']
-        codigo_destino = form.cleaned_data['aeropuerto_destino']
-
-        if codigo_origen == codigo_destino:
+    if request.method == 'POST':
+        try:
+            # Obtener datos del cuerpo de la petición JSON
+            data = json.loads(request.body)
+            aeropuerto_origen = data.get('aeropuerto_origen', '').strip().upper()
+            aeropuerto_destino = data.get('aeropuerto_destino', '').strip().upper()
+            
+            # Validar que ambos campos estén llenos
+            if not aeropuerto_origen or not aeropuerto_destino:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Debe ingresar ambos códigos de aeropuerto'
+                })
+            
+            # Validar que los códigos tengan 3 caracteres
+            if len(aeropuerto_origen) != 3 or len(aeropuerto_destino) != 3:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Los códigos IATA deben tener exactamente 3 caracteres'
+                })
+                
+            # Validar que los aeropuertos NO sean iguales
+            if aeropuerto_origen == aeropuerto_destino:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Los codigos IATA de los aeropuertos no pueden ser el mismo'
+                })
+            
+            # URL de la API
+            base_url = "https://airportgap.com/api/airports"
+            
+            # Datos para el POST request
+            airports_data = {
+                "from": aeropuerto_origen,
+                "to": aeropuerto_destino
+            }
+            
+            # Realizar la petición POST
+            response_post = requests.post(f"{base_url}/distance", json=airports_data, timeout=10)
+            
+            if response_post.status_code == 200:
+                datos = response_post.json()
+                
+                # Extraer información de la respuesta
+                result_data = {
+                    'success': True,
+                    'codigo': datos["data"]["id"],
+                    'aeropuerto_origen': {
+                        'nombre': datos["data"]["attributes"]["from_airport"]["name"],
+                        'ciudad': datos["data"]["attributes"]["from_airport"]["city"],
+                        'pais': datos["data"]["attributes"]["from_airport"]["country"],
+                        'codigo': aeropuerto_origen
+                    },
+                    'aeropuerto_destino': {
+                        'nombre': datos["data"]["attributes"]["to_airport"]["name"],
+                        'ciudad': datos["data"]["attributes"]["to_airport"]["city"],
+                        'pais': datos["data"]["attributes"]["to_airport"]["country"],
+                        'codigo': aeropuerto_destino
+                    },
+                    'distancia_km': round(datos["data"]["attributes"]["kilometers"]),
+                    'distancia_millas': round(datos["data"]["attributes"]["miles"]),
+                    'distancia_millas_nauticas': round(datos["data"]["attributes"]["nautical_miles"])
+                }
+                
+                return JsonResponse(result_data)
+            
+            elif response_post.status_code == 422:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Uno o ambos códigos de aeropuerto no son válidos'
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Error en la API: {response_post.status_code}'
+                })
+                
+        except requests.exceptions.Timeout:
             return JsonResponse({
-                "success": False,
-                "error": "El aeropuerto de origen y destino no pueden ser iguales."
-            }, status=400)
-
-        origen_data = AIRPORT_DATA.get(codigo_origen)
-        destino_data = AIRPORT_DATA.get(codigo_destino)
-
-        if not origen_data:
-            return JsonResponse({"success": False, "error": f"Código de origen no encontrado: {codigo_origen}"}, status=404)
-        if not destino_data:
-            return JsonResponse({"success": False, "error": f"Código de destino no encontrado: {codigo_destino}"}, status=404)
-
-        distancia = geodesic(origen_data["coords"], destino_data["coords"]).kilometers
-
-        return JsonResponse({
-            "success": True,
-            "aeropuerto_origen": {
-                "codigo": codigo_origen,
-                "nombre": origen_data["name"]
-            },
-            "aeropuerto_destino": {
-                "codigo": codigo_destino,
-                "nombre": destino_data["name"]
-            },
-            "distancia_km": round(distancia, 2)
-        })
-    else:
-        # Devuelve los errores de validación del formulario en formato JSON
-        return JsonResponse({"success": False, "error": json.loads(form.errors.as_json())}, status=400)
+                'success': False,
+                'error': 'Tiempo de espera agotado. Intente nuevamente.'
+            })
+        except requests.exceptions.ConnectionError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Error de conexión. Verifique su conexión a internet.'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Error inesperado: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'error': 'Método no permitido'
+    })
